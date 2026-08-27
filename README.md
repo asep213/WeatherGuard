@@ -127,10 +127,10 @@ WeatherGuard/
 
 ## Deployment ke Vercel
 
-Vercel dapat menjalankan **FastAPI API** melalui [`api/index.py`](api/index.py) dan konfigurasi [`vercel.json`](vercel.json). Setelah repository terhubung ke Vercel:
+Vercel menjalankan frontend **Next.js** secara otomatis dari `package.json`. Setelah repository terhubung ke Vercel:
 
 1. Set environment variable `APP_ENV=production`, `SECRET_KEY`, `CORS_ORIGINS`, dan API key yang diperlukan di Vercel Project Settings.
-2. Deploy dengan build command default Vercel. Dependency serverless API tersedia di [`requirements.txt`](requirements.txt).
+2. Deploy dengan build command default Vercel. Dependency frontend tersedia di `package.json`.
 3. Uji `https://<domain-anda>/api/v1/health` dan `https://<domain-anda>/docs`.
 
 Vercel **tidak menjalankan** `docker-compose`, PostgreSQL/TimescaleDB, Redis, Celery worker, Streamlit, atau WebSocket jangka panjang. Untuk arsitektur produksi, host API serverless di Vercel dan pindahkan database ke layanan PostgreSQL managed, Redis ke layanan managed, worker ke host/container worker, dan UI Streamlit ke Streamlit Community Cloud atau server/container terpisah. Endpoint WebSocket `/ws/alerts/stream` membutuhkan host persistent; gunakan polling atau layanan realtime managed pada deployment Vercel.
