@@ -1,0 +1,47 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.python-version
+
+# Python environments and generated files
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Node, Next.js, and Vercel generated files
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Local databases, logs, and generated data
+*.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+data/
+tmp/
+temp/
+
+# Streamlit and local tooling
+.streamlit/
+.cache/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

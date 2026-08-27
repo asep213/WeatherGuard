@@ -1,0 +1,99 @@
+services:
+  # -------------------------------------------------------------
+  # 1. PostgreSQL 16 + TimescaleDB + PostGIS (Hybrid Spatial/Time-Series)
+  # -------------------------------------------------------------
+  weatherguard-db:
+    image: timescale/timescaledb-ha:pg16
+    container_name: weatherguard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-weatherguard_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-WeatherGuardSecure2026!}
+      POSTGRES_DB: ${POSTGRES_DB:-weatherguard_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-weatherguard_admin} -d ${POSTGRES_DB:-weatherguard_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------
+  # 2. Redis (Cache, Fast Geohash Lookup & Celery Broker)
+  # -------------------------------------------------------------
+  weatherguard-redis:
+    image: redis:7.2-alpine
+    container_name: weatherguard-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # -------------------------------------------------------------
+  # 3. FastAPI REST & WebSocket Backend Service
+  # -------------------------------------------------------------
+  weatherguard-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weatherguard-backend
+    restart: unless-stopped
+    command: uvicorn src.backend.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-weatherguard_admin}:${POSTGRES_PASSWORD:-WeatherGuardSecure2026!}@weatherguard-db:5432/${POSTGRES_DB:-weatherguard_db}
+      - REDIS_URL=redis://weatherguard-redis:6379/0
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-mock_key}
+      - INFERENCE_DEVICE=${INFERENCE_DEVICE:-cpu}
+    depends_on:
+      weatherguard-db:
+        condition: service_healthy
+      weatherguard-redis:
+        condition: service_healthy
+
+  # -------------------------------------------------------------
+  # 4. Celery Background Worker & Scheduled Ingestion Beat
+  # -------------------------------------------------------------
+  weatherguard-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weatherguard-worker
+    restart: unless-stopped
+    command: celery -A src.backend.tasks.celery_worker.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-weatherguard_admin}:${POSTGRES_PASSWORD:-WeatherGuardSecure2026!}@weatherguard-db:5432/${POSTGRES_DB:-weatherguard_db}
+      - REDIS_URL=redis://weatherguard-redis:6379/0
+    depends_on:
+      - weatherguard-backend
+      - weatherguard-redis
+
+  # -------------------------------------------------------------
+  # 5. Streamlit Multi-Persona Interactive UI (Petani, Nelayan, BPBD)
+  # -------------------------------------------------------------
+  weatherguard-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weatherguard-frontend
+    restart: unless-stopped
+    command: streamlit run src/frontend/app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_API_URL=http://weatherguard-backend:8000/api/v1
+    depends_on:
+      - weatherguard-backend
+
+volumes:
+  timescale_data:
+  redis_data:
