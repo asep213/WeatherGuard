@@ -175,13 +175,15 @@ Supabase belum diperlukan untuk menampilkan forecast publik. Tambahkan `NEXT_PUB
 4. Jika menggunakan Supabase, tambahkan `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Gunakan anon key dengan Row Level Security aktif; jangan tambahkan service-role key.
 5. Klik **Redeploy** setelah environment variables ditambahkan. Uji halaman utama, dropdown lokasi, navigasi Peta Spasial, zoom, klik titik peta, dan endpoint Open-Meteo.
 
+Jika URL Vercel menampilkan halaman login Vercel, buka **Project Settings → Deployment Protection** dan matikan proteksi untuk deployment yang ingin dibagikan publik, atau gunakan URL production domain setelah autentikasi project selesai. Jika muncul `FUNCTION_INVOCATION_FAILED`, pastikan project ini memakai Framework Preset `Next.js`, Root Directory `.`, dan tidak memiliki `vercel.json` yang mengarahkan `/(.*)` ke FastAPI.
+
 ### Menempatkan FastAPI
 
 FastAPI dapat dideploy sebagai function menggunakan [`api/index.py`](api/index.py), tetapi endpoint WebSocket, Celery, Redis, dan database tidak cocok untuk runtime serverless. Untuk operasi penuh, gunakan host persistent terpisah untuk FastAPI/worker dan database PostgreSQL managed. Setelah API live, isi `NEXT_PUBLIC_API_URL` dengan URL API tersebut, misalnya `https://api.example.com/api/v1`, lalu tambahkan domain frontend Vercel ke `CORS_ORIGINS` pada backend.
 
 ### Data Real dan Batasannya
 
-Frontend menggunakan Open-Meteo Weather API dan Marine API tanpa API key untuk forecast cuaca/gelombang titik yang dipilih. Peta menggunakan tile OpenStreetMap. Data BMKG, Himawari, Sentinel, notifikasi SMS/WhatsApp, dan model AI WeatherGuard belum terhubung otomatis; integrasi tersebut memerlukan credential, pipeline ingestion, caching, monitoring, serta validasi meteorologis sebelum dipakai untuk peringatan keselamatan resmi.
+Frontend menggunakan Open-Meteo Weather API dan Marine API tanpa API key untuk forecast cuaca/gelombang titik yang dipilih. Peta menggunakan tile OpenStreetMap dengan overlay radar hujan terbaru dari RainViewer. Data BMKG, Himawari, Sentinel, notifikasi SMS/WhatsApp, dan model AI WeatherGuard belum terhubung otomatis; integrasi tersebut memerlukan credential, pipeline ingestion, caching, monitoring, serta validasi meteorologis sebelum dipakai untuk peringatan keselamatan resmi.
 
 ### Menjalankan Full Stack dengan Docker
 
