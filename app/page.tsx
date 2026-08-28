@@ -8,12 +8,16 @@ type Mode = "farmer" | "maritime" | "bpbd" | "map";
 type Forecast = { date: string; temperature_c: number; temp_min_c: number; temp_max_c: number; rain_accum_24h_mm: number; wind_speed_kmh: number; wave_height_m: number; humidity_pct: number; uv_index: number };
 type Location = { name: string; detail: string; lat: number; lon: number; elevation: number };
 type SearchResult = { name: string; latitude: number; longitude: number; admin1?: string; country?: string };
+type WeatherPoint = Location & { condition: string; rain: number; temperature: number };
 const WeatherMap = dynamic(() => import("../components/WeatherMap"), { ssr: false });
 
 const locations = [
   { name: "Kota Tebing Tinggi", detail: "Sumatera Utara • DAS Sungai Padang", lat: 3.3285, lon: 99.1625, elevation: 26 },
   { name: "Kab. Karawang", detail: "Jawa Barat • Telagasari", lat: -6.302, lon: 107.408, elevation: 25 },
   { name: "Pelabuhan Teluk Penyu", detail: "Cilacap • Samudra Hindia", lat: -7.728, lon: 109.015, elevation: 5 },
+];
+const indonesiaPoints: Location[] = [
+  { name: "Banda Aceh", detail: "Aceh", lat: 5.55, lon: 95.32, elevation: 10 }, { name: "Medan", detail: "Sumatera Utara", lat: 3.59, lon: 98.67, elevation: 25 }, { name: "Padang", detail: "Sumatera Barat", lat: -0.95, lon: 100.36, elevation: 10 }, { name: "Pekanbaru", detail: "Riau", lat: 0.51, lon: 101.45, elevation: 20 }, { name: "Jakarta", detail: "DKI Jakarta", lat: -6.2, lon: 106.85, elevation: 10 }, { name: "Bandung", detail: "Jawa Barat", lat: -6.91, lon: 107.61, elevation: 700 }, { name: "Semarang", detail: "Jawa Tengah", lat: -6.99, lon: 110.42, elevation: 10 }, { name: "Surabaya", detail: "Jawa Timur", lat: -7.25, lon: 112.75, elevation: 5 }, { name: "Denpasar", detail: "Bali", lat: -8.65, lon: 115.22, elevation: 20 }, { name: "Banjarmasin", detail: "Kalimantan Selatan", lat: -3.32, lon: 114.59, elevation: 5 }, { name: "Makassar", detail: "Sulawesi Selatan", lat: -5.15, lon: 119.43, elevation: 10 }, { name: "Jayapura", detail: "Papua", lat: -2.53, lon: 140.72, elevation: 15 },
 ];
 
 const fallback: Forecast[] = [5, 0, 18, 62, 8, 0, 2].map((rain, index) => ({ date: `2026-08-${28 + index}`, temperature_c: 28.5 - index * .2, temp_min_c: 23, temp_max_c: 32 - index * .2, rain_accum_24h_mm: rain, wind_speed_kmh: 12 + (index % 3) * 4.5, wave_height_m: .8 + rain / 40, humidity_pct: 72 + rain * .3, uv_index: rain < 10 ? 8.5 : 3.2 }));
@@ -36,6 +40,8 @@ export default function Home() {
   const [searching, setSearching] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [notice, setNotice] = useState("");
+  const [mapDay, setMapDay] = useState(0);
+  const [weatherPoints, setWeatherPoints] = useState<WeatherPoint[]>([]);
 
   const selectedLocation = locations[locationIndex >= 0 ? locationIndex : 0];
   const location = mapPoint || selectedLocation;
@@ -62,6 +68,15 @@ export default function Home() {
       })
       .catch(() => setConnected(false));
   }, [location, mode, refreshKey]);
+
+  useEffect(() => {
+    const latitudes = indonesiaPoints.map((item) => item.lat).join(",");
+    const longitudes = indonesiaPoints.map((item) => item.lon).join(",");
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitudes}&longitude=${longitudes}&daily=weather_code,temperature_2m_mean,precipitation_sum&timezone=Asia%2FJakarta&forecast_days=7`)
+      .then((response) => response.json())
+      .then((data) => setWeatherPoints(indonesiaPoints.map((item, index) => { const point = Array.isArray(data) ? data[index] : data; const code = point.daily.weather_code[mapDay]; return { ...item, condition: weatherLabel(code), rain: point.daily.precipitation_sum[mapDay] || 0, temperature: point.daily.temperature_2m_mean[mapDay] }; })))
+      .catch(() => setWeatherPoints([]));
+  }, [mapDay, refreshKey]);
 
   const searchLocations = () => {
     if (query.trim().length < 2) return;
@@ -110,7 +125,7 @@ export default function Home() {
           <div className="location"><label>Lokasi pemantauan</label><select value={locationIndex >= 0 ? locationIndex : "map"} onChange={(event) => { if (event.target.value !== "map") { setMapPoint(null); setLocationIndex(Number(event.target.value)); } }}>{mapPoint && <option value="map">{mapPoint.name}</option>}{locations.map((item, index) => <option value={index} key={item.name}>{item.name}</option>)}</select><small>{activeLocation.detail}</small><div className="search-row"><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") searchLocations(); }} placeholder="Cari kota atau kabupaten..." aria-label="Cari daerah" /><button className="search-button" onClick={searchLocations}>{searching ? "..." : "Cari"}</button></div>{searchResults.length > 0 && <div className="search-results">{searchResults.map((result) => <button key={`${result.name}-${result.latitude}`} onClick={() => chooseSearchResult(result)}>{result.name}<small>{result.admin1 || result.country}</small></button>)}</div>}</div>
         </section>
 
-        {mode === "map" ? <MapPanel locations={locations} onPick={pickMapPoint} /> : <>
+        {mode === "map" ? <MapPanel locations={locations} weatherPoints={weatherPoints} mapDay={mapDay} setMapDay={setMapDay} onPick={pickMapPoint} /> : <>
           <section className="metrics">
             <Metric icon={<CloudRain size={18} />} label="Hujan hari ini" value={`${today.rain_accum_24h_mm.toFixed(1)} mm`} note={today.rain_accum_24h_mm > 50 ? "Risiko tinggi" : "Kondisi terkendali"} />
             <Metric icon={<Sun size={18} />} label="Suhu rata-rata" value={`${today.temperature_c.toFixed(1)}°C`} note={`Maks ${today.temp_max_c.toFixed(1)}°C`} />
@@ -134,4 +149,6 @@ function Metric({ icon, label, value, note }: { icon: React.ReactNode; label: st
 function ForecastTable({ forecast, mode }: { forecast: Forecast[]; mode: Mode }) { return <div className="forecast-list"><div className="forecast-row"><span>Hari</span><span>Kondisi</span><span>Hujan</span><span>Status</span></div>{forecast.map((day, index) => { const bad = day.rain_accum_24h_mm > 50; const maritime = mode === "maritime"; return <div className="forecast-row" key={day.date}><strong>{index === 0 ? "Hari ini" : `H+${index}`}<small> · {day.date.slice(5)}</small></strong><span>{maritime ? `${day.wave_height_m.toFixed(1)} m gelombang` : `${day.temperature_c.toFixed(1)}°C`}</span><span>{day.rain_accum_24h_mm.toFixed(1)} mm</span><span className={`status ${bad ? "bad" : day.rain_accum_24h_mm > 15 ? "warn" : "good"}`}>{bad ? "Waspada" : day.rain_accum_24h_mm > 15 ? "Pantau" : "Aman"}</span></div>; })}</div>; }
 function RiskPanel({ mode, peakRain, today }: { mode: Mode; peakRain: number; today: Forecast }) { const maritime = mode === "maritime"; const score = maritime ? (today.wave_height_m < 1.8 ? "Aman" : "Siaga") : peakRain > 50 ? "Siaga 2" : "Siaga 3"; return <div className="panel risk-panel"><div className="panel-head"><div><h2>Ringkasan risiko</h2><span className="panel-subtitle">Analisis WeatherGuard</span></div><Droplets size={19} /></div><div className="risk-score"><div className="score-ring">{maritime ? "72" : peakRain > 50 ? "58" : "82"}</div><div className="risk-copy"><strong>{score}</strong><span>{maritime ? "Jendela aman terbatas" : "Kesiapsiagaan wilayah"}</span></div></div><div className="risk-list"><div className="risk-item"><span>Curah hujan puncak</span><b>{peakRain.toFixed(1)} mm</b></div><div className="risk-item"><span>Kelembaban</span><b>{today.humidity_pct.toFixed(0)}%</b></div><div className="risk-item"><span>Rekomendasi</span><b>{maritime ? "Dekat pantai" : "Pantau DAS"}</b></div></div></div>; }
 function ActionPanel({ mode, today }: { mode: Mode; today: Forecast }) { const maritime = mode === "maritime"; const bpbd = mode === "bpbd"; return <div className="panel"><div className="panel-head"><div><h2>Aksi yang disarankan</h2><span className="panel-subtitle">Berdasarkan kondisi hari ini</span></div><Trees size={18} color="#238b72" /></div><div className="actions"><div className="action"><span className="action-icon">{maritime ? <Ship size={19} /> : bpbd ? <Bell size={19} /> : <Leaf size={19} />}</span><div><h3>{maritime ? "Batasi radius pelayaran" : bpbd ? "Siagakan posko DAS" : today.rain_accum_24h_mm > 15 ? "Tunda penyemprotan" : "Jendela semprot optimal"}</h3><p>{maritime ? "Gelombang dan angin perlu dipantau sebelum berangkat." : bpbd ? "Pantau titik genangan dan siapkan notifikasi warga." : "Gunakan prakiraan ini sebagai panduan operasional lapangan."}</p></div></div><div className="action"><span className="action-icon"><Waves size={19} /></span><div><h3>Perbarui keputusan</h3><p>Data berikutnya tersedia setelah sinkronisasi provider cuaca.</p></div></div></div></div>; }
-function MapPanel({ locations, compact = false, onPick }: { locations: Location[]; compact?: boolean; onPick?: (lat: number, lon: number) => void }) { return <div className={`panel ${compact ? "map-panel" : "wide"}`}><div className="panel-head"><div><h2>{compact ? "" : "Peta interaktif"}</h2><span className="panel-subtitle">{compact ? "" : "OpenStreetMap + RainViewer radar • klik lokasi"}</span></div></div><div className="map"><WeatherMap locations={locations} onPick={onPick} /><span className="map-label">Radar hujan live • OpenStreetMap / RainViewer</span></div></div>; }
+function MapPanel({ locations, weatherPoints = [], compact = false, mapDay = 0, setMapDay, onPick }: { locations: Location[]; weatherPoints?: WeatherPoint[]; compact?: boolean; mapDay?: number; setMapDay?: (day: number) => void; onPick?: (lat: number, lon: number) => void }) { return <div className={`panel ${compact ? "map-panel" : "wide"}`}><div className="panel-head"><div><h2>{compact ? "" : "Peta prakiraan 7 hari"}</h2><span className="panel-subtitle">{compact ? "" : "OpenStreetMap + radar hujan live • data Open-Meteo"}</span></div></div>{!compact && <div className="map-days">{Array.from({ length: 7 }, (_, index) => <button key={index} className={mapDay === index ? "selected" : ""} onClick={() => setMapDay?.(index)}>{index === 0 ? "Hari ini" : `H+${index}`}</button>)}</div>}<div className="map"><WeatherMap locations={locations} weatherPoints={weatherPoints} onPick={onPick} /><span className="map-label">{compact ? "Radar hujan live" : `${weatherPoints.length} wilayah • ${mapDay === 0 ? "Hari ini" : `H+${mapDay}`} • klik marker untuk detail`}</span></div></div>; }
+
+function weatherLabel(code: number) { if (code === 0) return "Cerah"; if (code <= 3) return "Cerah berawan"; if (code <= 48) return "Berkabut"; if (code <= 67) return "Hujan"; if (code <= 77) return "Salju/hujan es"; if (code <= 82) return "Hujan lokal"; return "Badai petir"; }
