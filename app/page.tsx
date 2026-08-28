@@ -7,6 +7,7 @@ import { Activity, Anchor, Bell, CloudRain, Droplets, Leaf, Map, ShieldCheck, Sh
 type Mode = "farmer" | "maritime" | "bpbd" | "map";
 type Forecast = { date: string; temperature_c: number; temp_min_c: number; temp_max_c: number; rain_accum_24h_mm: number; wind_speed_kmh: number; wave_height_m: number; humidity_pct: number; uv_index: number };
 type Location = { name: string; detail: string; lat: number; lon: number; elevation: number };
+type SearchResult = { name: string; latitude: number; longitude: number; admin1?: string; country?: string };
 const WeatherMap = dynamic(() => import("../components/WeatherMap"), { ssr: false });
 
 const locations = [
@@ -30,6 +31,11 @@ export default function Home() {
   const [forecast, setForecast] = useState<Forecast[]>(fallback);
   const [connected, setConnected] = useState(false);
   const [mapPoint, setMapPoint] = useState<Location | null>(null);
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [notice, setNotice] = useState("");
 
   const selectedLocation = locations[locationIndex >= 0 ? locationIndex : 0];
   const location = mapPoint || selectedLocation;
@@ -55,7 +61,23 @@ export default function Home() {
         setConnected(true);
       })
       .catch(() => setConnected(false));
-  }, [location, mode]);
+  }, [location, mode, refreshKey]);
+
+  const searchLocations = () => {
+    if (query.trim().length < 2) return;
+    setSearching(true);
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=10&language=id&format=json`)
+      .then((response) => response.json())
+      .then((data) => setSearchResults((data.results || []).filter((result: SearchResult) => result.country === "Indonesia")))
+      .finally(() => setSearching(false));
+  };
+
+  const chooseSearchResult = (result: SearchResult) => {
+    setMapPoint({ name: result.name, detail: `${result.admin1 || "Indonesia"} • data Open-Meteo`, lat: result.latitude, lon: result.longitude, elevation: 25 });
+    setLocationIndex(-1);
+    setSearchResults([]);
+    setQuery("");
+  };
 
   const pickMapPoint = (lat: number, lon: number) => {
     setMapPoint({ name: "Titik pilihan peta", detail: `${lat.toFixed(3)}, ${lon.toFixed(3)} • Open-Meteo`, lat, lon, elevation: 25 });
@@ -79,12 +101,13 @@ export default function Home() {
       <main className="main">
         <header className="topbar">
           <div><p className="eyebrow">Dashboard / {config.label}</p><h1>{config.title}</h1></div>
-          <div className="top-actions"><span className="sync"><i className="dot" /> {connected ? "API tersambung" : "Mode demo aktif"}</span><button className="ghost" aria-label="Notifikasi"><Bell size={17} /></button></div>
+          <div className="top-actions"><span className="sync"><i className="dot" /> {connected ? "API tersambung" : "Mode demo aktif"}</span><button className="ghost" aria-label="Notifikasi" onClick={() => setNotice("Tidak ada peringatan baru untuk lokasi ini.")}><Bell size={17} /></button></div>
         </header>
+        {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice("")} aria-label="Tutup notifikasi">×</button></div>}
 
         <section className="hero">
           <div><p className="eyebrow">Pusat keputusan cuaca</p><h2>Cuaca yang diterjemahkan menjadi tindakan.</h2><p>Pantau risiko, temukan jendela aman, dan bergerak lebih cepat dengan prakiraan berbasis dampak.</p></div>
-          <div className="location"><label>Lokasi pemantauan</label><select value={locationIndex >= 0 ? locationIndex : "map"} onChange={(event) => { if (event.target.value !== "map") { setMapPoint(null); setLocationIndex(Number(event.target.value)); } }}>{mapPoint && <option value="map">Titik pilihan peta</option>}{locations.map((item, index) => <option value={index} key={item.name}>{item.name}</option>)}</select><small>{activeLocation.detail}</small></div>
+          <div className="location"><label>Lokasi pemantauan</label><select value={locationIndex >= 0 ? locationIndex : "map"} onChange={(event) => { if (event.target.value !== "map") { setMapPoint(null); setLocationIndex(Number(event.target.value)); } }}>{mapPoint && <option value="map">{mapPoint.name}</option>}{locations.map((item, index) => <option value={index} key={item.name}>{item.name}</option>)}</select><small>{activeLocation.detail}</small><div className="search-row"><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") searchLocations(); }} placeholder="Cari kota atau kabupaten..." aria-label="Cari daerah" /><button className="search-button" onClick={searchLocations}>{searching ? "..." : "Cari"}</button></div>{searchResults.length > 0 && <div className="search-results">{searchResults.map((result) => <button key={`${result.name}-${result.latitude}`} onClick={() => chooseSearchResult(result)}>{result.name}<small>{result.admin1 || result.country}</small></button>)}</div>}</div>
         </section>
 
         {mode === "map" ? <MapPanel locations={locations} onPick={pickMapPoint} /> : <>
@@ -95,7 +118,7 @@ export default function Home() {
             <Metric icon={<Activity size={18} />} label="Sumber data" value="Live" note="Open-Meteo" />
           </section>
           <section className="content-grid">
-            <div className="panel"><div className="panel-head"><div><h2>Prakiraan 7 hari</h2><span className="panel-subtitle">Open-Meteo Weather + Marine • live</span></div><button className="ghost" aria-label="Segarkan data" onClick={() => setLocationIndex(locationIndex)}>↻</button></div><ForecastTable forecast={forecast} mode={mode} /></div>
+            <div className="panel"><div className="panel-head"><div><h2>Prakiraan 7 hari</h2><span className="panel-subtitle">Open-Meteo Weather + Marine • live</span></div><button className="ghost" aria-label="Segarkan data" onClick={() => setRefreshKey((value) => value + 1)}>↻</button></div><ForecastTable forecast={forecast} mode={mode} /></div>
             <RiskPanel mode={mode} peakRain={peakRain} today={today} />
             <ActionPanel mode={mode} today={today} />
             <div className="panel"><div className="panel-head"><div><h2>Peta risiko wilayah</h2><span className="panel-subtitle">Radar hujan live • klik untuk forecast titik</span></div><Map size={18} color="#087e8b" /></div><MapPanel locations={[activeLocation]} onPick={pickMapPoint} compact /></div>

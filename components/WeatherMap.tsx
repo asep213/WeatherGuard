@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useState } from "react";
-import { CircleMarker, MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { CircleMarker, MapContainer, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
 
 type MapLocation = { name: string; lat: number; lon: number };
 
@@ -42,7 +42,7 @@ export default function WeatherMap({ locations, onPick }: { locations: MapLocati
       <RainRadarLayer />
       <MapBounds locations={locations} />
       <ClickHandler onPick={onPick} />
-      {locations.map((item) => <CircleMarker key={`${item.name}-${item.lat}`} center={[item.lat, item.lon]} radius={9} pathOptions={{ color: "#fff", weight: 3, fillColor: "#d1495b", fillOpacity: 1 }} />)}
+      {locations.map((item) => <CircleMarker key={`${item.name}-${item.lat}`} center={[item.lat, item.lon]} radius={9} pathOptions={{ color: "#fff", weight: 3, fillColor: "#d1495b", fillOpacity: 1 }}><Popup>{item.name}<br />Klik peta untuk mengambil cuaca di titik mana pun.</Popup></CircleMarker>)}
     </MapContainer>
   );
 }
