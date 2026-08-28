@@ -170,12 +170,13 @@ Supabase belum diperlukan untuk menampilkan forecast publik. Tambahkan `NEXT_PUB
 ## Deploy Frontend Next.js ke Vercel
 
 1. Push project ke GitHub/GitLab/Bitbucket. Pastikan `.env` tidak pernah di-commit.
-2. Buka [vercel.com/new](https://vercel.com/new), pilih repository project ini, lalu klik **Deploy**. Vercel akan mendeteksi Next.js dari `package.json`.
+2. Buka [vercel.com/new](https://vercel.com/new), pilih repository project ini, lalu klik **Deploy**. Vercel akan menggunakan konfigurasi [`vercel.json`](vercel.json) untuk Next.js.
 3. Pada **Project Settings → Environment Variables**, tambahkan `NEXT_PUBLIC_API_URL` hanya jika ingin memakai FastAPI yang sudah di-host. Jika kosong, frontend otomatis memakai Open-Meteo langsung dari browser.
 4. Jika menggunakan Supabase, tambahkan `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Gunakan anon key dengan Row Level Security aktif; jangan tambahkan service-role key.
-5. Klik **Redeploy** setelah environment variables ditambahkan. Uji halaman utama, dropdown lokasi, navigasi Peta Spasial, zoom, klik titik peta, dan endpoint Open-Meteo.
+5. Pada **Settings → General → Build & Deployment**, pastikan **Framework Preset** adalah `Next.js`, **Root Directory** adalah `.`, **Build Command** adalah `npm run build`, dan **Output Directory** adalah `.next` atau dikosongkan agar otomatis. Jangan isi `default`.
+6. Klik **Redeploy** setelah environment variables dan setting build diperbaiki. Uji halaman utama, dropdown lokasi, navigasi Peta Spasial, zoom, klik titik peta, dan endpoint Open-Meteo.
 
-Jika URL Vercel menampilkan halaman login Vercel, buka **Project Settings → Deployment Protection** dan matikan proteksi untuk deployment yang ingin dibagikan publik, atau gunakan URL production domain setelah autentikasi project selesai. Jika muncul `FUNCTION_INVOCATION_FAILED`, pastikan project ini memakai Framework Preset `Next.js`, Root Directory `.`, dan tidak memiliki `vercel.json` yang mengarahkan `/(.*)` ke FastAPI.
+Jika URL Vercel menampilkan halaman login Vercel, buka **Project Settings → Deployment Protection** dan matikan proteksi untuk deployment yang ingin dibagikan publik, atau gunakan URL production domain setelah autentikasi project selesai. Jika muncul `FUNCTION_INVOCATION_FAILED`, pastikan project ini memakai Framework Preset `Next.js`, Root Directory `.`, dan tidak memiliki route catch-all yang mengarahkan `/(.*)` ke FastAPI. Jika muncul `output directory "default" not found`, ubah **Output Directory** menjadi `.next` atau kosongkan.
 
 ### Menempatkan FastAPI
 
